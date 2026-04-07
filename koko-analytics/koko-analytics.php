@@ -3,8 +3,8 @@
 /*
 Plugin Name: Koko Analytics
 Plugin URI: https://www.kokoanalytics.com/#utm_source=wp-plugin&utm_medium=koko-analytics&utm_campaign=plugins-page
-Version: 1.3.15
-Description: Privacy-friendly analytics for your WordPress site.
+Version: 2.3.2
+Description: Privacy-friendly and efficient statistics for your WordPress site.
 Author: ibericode
 Author URI: https://www.ibericode.com/
 Author Email: support@kokoanalytics.com
@@ -14,7 +14,7 @@ License URI: http://www.gnu.org/licenses/gpl-3.0.html
 
 Koko Analytics - website analytics plugin for WordPress
 
-Copyright (C) 2019 - 2024, Danny van Kooten, hi@dannyvankooten.com
+Copyright (C) 2019 - 2026, Danny van Kooten, hi@dannyvankooten.com
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -34,34 +34,39 @@ phpcs:disable PSR1.Files.SideEffects
 
 namespace KokoAnalytics;
 
-\define('KOKO_ANALYTICS_VERSION', '1.3.15');
-\define('KOKO_ANALYTICS_PLUGIN_FILE', __FILE__);
-\define('KOKO_ANALYTICS_PLUGIN_DIR', __DIR__);
+use WP_CLI;
+
+// don't run if PHP version is lower than 7.4
+// prevent direct file access
+if (PHP_VERSION_ID < 70400 || ! \defined('ABSPATH')) {
+    return;
+}
+
+define('KOKO_ANALYTICS_VERSION', '2.3.2');
+define('KOKO_ANALYTICS_PLUGIN_FILE', __FILE__);
+define('KOKO_ANALYTICS_PLUGIN_DIR', __DIR__);
 
 // Load the Koko Analytics autoloader
 require __DIR__ . '/autoload.php';
 
-if (\defined('DOING_AJAX') && DOING_AJAX) {
-    maybe_collect_request();
-} elseif (is_admin()) {
-    new Admin();
-    new Dashboard_Widget();
-} else {
-    new Script_Loader();
-    add_action('admin_bar_menu', 'KokoAnalytics\admin_bar_menu', 40, 1);
+// Main hooks (global)
+require __DIR__ . '/src/Controller.php';
+(new Controller())->hook();
+
+// Block related hooks
+require __DIR__ . '/src/Blocks.php';
+(new Blocks())->hook();
+
+// Admin hooks (admin only)
+if (is_admin()) {
+    require __DIR__ . '/src/Admin/Controller.php';
+    (new Admin\Controller())->hook();
 }
 
-new Dashboard();
-$aggregator = new Aggregator();
-new Plugin($aggregator);
-new Rest();
-new Shortcode_Most_Viewed_Posts();
-new ShortCode_Site_Counter();
-new Pruner();
-
-if (\class_exists('WP_CLI')) {
-    \WP_CLI::add_command('koko-analytics', 'KokoAnalytics\Command');
+// WP CLI command
+if (defined('WP_CLI') && WP_CLI) {
+    WP_CLI::add_command('koko-analytics', Command::class);
 }
 
-add_action('widgets_init', 'KokoAnalytics\widgets_init');
-add_action('koko_analytics_test_custom_endpoint', 'KokoAnalytics\test_custom_endpoint');
+register_activation_hook(__FILE__, lazy(Plugin::class, 'action_activate_plugin'));
+register_deactivation_hook(__FILE__, lazy(Plugin::class, 'action_deactivate_plugin'));
