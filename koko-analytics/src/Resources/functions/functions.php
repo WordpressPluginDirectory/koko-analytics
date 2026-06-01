@@ -10,6 +10,10 @@ namespace KokoAnalytics;
 
 use WP_Query;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 /**
  * Returns a closure that instantiates the class and calls the given method when called
  *
@@ -24,13 +28,23 @@ function lazy($class, $method)
     };
 }
 
+function get_migrations(): Migrations_v2
+{
+    return new Migrations_v2(KOKO_ANALYTICS_PLUGIN_DIR . '/migrations/', 'koko_analytics_migrations');
+}
+
+function get_database_stats(): Database_Stats
+{
+    return new Database_Stats();
+}
+
 function get_settings(): array
 {
     $default_settings = [
         'tracking_method' => 'cookie',
         'exclude_user_roles' => [],
         'exclude_ip_addresses' => [],
-        'prune_data_after_months' => 5 * 12,
+        'prune_data_after_months' => 3 * 12,
         'default_view' => 'last_28_days',
         'is_dashboard_public' => 0,
         'component_order' => [],

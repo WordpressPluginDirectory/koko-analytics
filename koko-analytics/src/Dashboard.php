@@ -13,6 +13,20 @@ use DateTimeInterface;
 
 class Dashboard
 {
+    public const MAX_LIMIT = 100;
+    public const MAX_OFFSET = 10000;
+
+    public static function clamp_limit($value, int $default = 10, int $minimum = 1): int
+    {
+        $limit = isset($value) ? absint($value) : $default;
+        return min(self::MAX_LIMIT, max($minimum, $limit));
+    }
+
+    public static function clamp_offset($value): int
+    {
+        return min(self::MAX_OFFSET, isset($value) ? absint($value) : 0);
+    }
+
     public function get_base_url()
     {
         return admin_url('index.php?page=koko-analytics');
@@ -260,8 +274,8 @@ class Dashboard
     public function component_pages(DateTimeInterface $date_start, DateTimeInterface $date_end): void
     {
         $items_per_page = (int) apply_filters('koko_analytics_items_per_page', 20);
-        $offset = isset($_GET['posts']['offset']) ? absint($_GET['posts']['offset']) : 0;
-        $limit = isset($_GET['posts']['limit']) ? absint($_GET['posts']['limit']) : $items_per_page;
+        $offset = self::clamp_offset($_GET['posts']['offset'] ?? null);
+        $limit = self::clamp_limit($_GET['posts']['limit'] ?? null, $items_per_page);
         $page = isset($_GET['p']) ? trim($_GET['p']) : 0;
 
         $stats = new Stats();
@@ -285,12 +299,13 @@ class Dashboard
             </thead>
             <tbody>
                 <?php foreach ($posts as $i => $p) { ?>
+                    <?php $page_filter = $p->post_id > 0 ? (string) $p->post_id : $p->path; ?>
                     <?php $pct = $sum > 0 && $page === 0  ? round(($p->pageviews / $sum) * 100, 0) : 0; ?>
-                    <tr <?= $page == $p->path ? 'class="page-filter-active"' : ''; ?> style="background: linear-gradient(to right, var(--koko-analytics-row-gradient-color) <?= $pct ?>%, transparent <?= $pct ?>%);">
+                    <tr <?= (string) $page === $page_filter ? 'class="page-filter-active"' : ''; ?> style="background: linear-gradient(to right, var(--koko-analytics-row-gradient-color) <?= $pct ?>%, transparent <?= $pct ?>%);">
                         <td class="text-muted"><?=  $offset + $i + 1; ?></td>
                         <td class="text-truncate">
-                            <a href="<?= esc_attr(add_query_arg(['p' => $p->path])); ?>"><?= esc_html($p->label); ?></a>
-                            <a class="ka-visit-link" href="<?= esc_attr(esc_url($p->post_permalink)); ?>" target="_blank" rel="noopener" title="<?php esc_attr_e('View page', 'koko-analytics'); ?>"><i class="icon icon-sm icon-external-link" aria-hidden="true"></i></a>
+                            <a href="<?= esc_attr(add_query_arg(['p' => $page_filter])); ?>"><?= esc_html($p->label); ?></a>
+                            <a class="ka-visit-link" href="<?= esc_url($p->post_permalink); ?>" target="_blank" rel="noopener" title="<?php esc_attr_e('View page', 'koko-analytics'); ?>"><i class="icon icon-sm icon-external-link" aria-hidden="true"></i></a>
                         </td>
                         <td class="text-end d-none d-lg-table-cell"><?= number_format_i18n(max(1, $p->visitors)); ?></td>
                         <td class="text-end"><?= number_format_i18n($p->pageviews); ?></td>
@@ -311,16 +326,16 @@ class Dashboard
     public function component_referrers(DateTimeInterface $date_start, DateTimeInterface $date_end): void
     {
         $items_per_page = (int) apply_filters('koko_analytics_items_per_page', 20);
-        $referrers_offset = isset($_GET['referrers']['offset']) ? absint($_GET['referrers']['offset']) : 0;
-        $referrers_limit = isset($_GET['referrers']['limit']) ? absint($_GET['referrers']['limit']) : $items_per_page;
+        $offset = self::clamp_offset($_GET['referrers']['offset'] ?? null);
+        $limit = self::clamp_limit($_GET['referrers']['limit'] ?? null, $items_per_page);
         $stats = new Stats();
-        $referrers = $stats->get_referrers($date_start, $date_end, $referrers_offset, $referrers_limit);
-        if (count($referrers) < $referrers_limit && $referrers_offset === 0) {
-            $referrers_count = count($referrers);
-            $referrers_sum = array_sum(array_column($referrers, 'pageviews'));
+        $referrers = $stats->get_referrers($date_start, $date_end, $offset, $limit);
+        if (count($referrers) < $limit && $offset === 0) {
+            $count = count($referrers);
+            $sum = array_sum(array_column($referrers, 'pageviews'));
         } else {
-            $referrers_count = $stats->count_referrers($date_start, $date_end);
-            $referrers_sum = $stats->sum_referrers($date_start, $date_end);
+            $count = $stats->count_referrers($date_start, $date_end);
+            $sum = $stats->sum_referrers($date_start, $date_end);
         }
         ?>
         <table class="ka-table">
@@ -334,9 +349,9 @@ class Dashboard
             </thead>
             <tbody>
                 <?php foreach ($referrers as $i => $r) { ?>
-                    <?php $pct = $referrers_sum > 0 ? round(($r->pageviews / $referrers_sum) * 100, 0) : 0; ?>
+                    <?php $pct = $sum > 0 ? round(($r->pageviews / $sum) * 100, 0) : 0; ?>
                     <tr style="background: linear-gradient(to right, var(--koko-analytics-row-gradient-color) <?= $pct ?>%, transparent <?= $pct ?>%);">
-                        <td class="text-muted"><?= $referrers_offset + $i + 1; ?></td>
+                        <td class="text-muted"><?= $offset + $i + 1; ?></td>
                         <td class="text-truncate"><?= Fmt::referrer_url_label(esc_html($r->url)); ?></td>
                         <td class="text-end d-none d-lg-table-cell"><?= number_format_i18n(max(1, $r->visitors)); ?></td>
                         <td class="text-end"><?= number_format_i18n($r->pageviews); ?></td>
@@ -349,7 +364,7 @@ class Dashboard
             <p class="ka-empty-state"><?php esc_html_e('There is nothing here. Yet!', 'koko-analytics'); ?></p>
         <?php } ?>
 
-        <?php $this->pagination('referrers', $referrers_offset, $referrers_limit, $referrers_count); ?>
+        <?php $this->pagination('referrers', $offset, $limit, $count); ?>
         
         <?php
     }

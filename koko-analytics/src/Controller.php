@@ -7,29 +7,30 @@ use KokoAnalytics\Shortcodes\Shortcode_Site_Counter;
 use KokoAnalytics\Widgets\Most_Viewed_Posts_Widget;
 use WP_Admin_Bar;
 
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 class Controller
 {
     public function hook(): void
     {
         add_action('init', [$this, 'maybe_collect_request'], PHP_INT_MIN, 0);
         add_action('init', [$this, 'action_init'], 10, 0);
-        add_action('wp_loaded', [$this, 'action_wp_loaded'], 10, 0);
         add_action('wp', [$this, 'action_wp'], 10, 0);
         add_action('widgets_init', [$this, 'action_widgets_init'], 10, 0);
 
         add_filter('cron_schedules', [$this, 'filter_cron_schedules'], 10, 1);
         add_action('rest_api_init', lazy(Rest::class, 'action_rest_api_init'), 10, 0);
 
-        add_action('koko_analytics_aggregate_stats', lazy(Aggregator::class, 'run'), 10, 0);
+        // run database migrations before pruning data
+        add_action('koko_analytics_prune_data', [$this, 'maybe_run_database_migrations'], 1, 0);
+
+        add_action('koko_analytics_aggregate_stats', [$this, 'aggregate_stats'], 10, 0);
         add_action('koko_analytics_prune_data', lazy(Pruner::class, 'run'), 10, 0);
         add_action('koko_analytics_rotate_fingerprint_seed', lazy(Fingerprinter::class, 'run_daily_maintenance'), 10, 0);
         add_action('koko_analytics_test_custom_endpoint', lazy(Endpoint_Installer::class, 'test'), 10, 0);
         add_action('koko_analytics_update_custom_endpoint', lazy(Endpoint_Installer::class, 'install'), 10, 0);
-    }
-
-    public function action_wp_loaded(): void
-    {
-        $this->run_pending_database_migrations();
     }
 
     public function action_init(): void
@@ -95,14 +96,36 @@ class Controller
 
     protected function maybe_show_dashboard(): void
     {
-        if (! isset($_GET['koko-analytics-dashboard']) && ! str_contains($_SERVER['REQUEST_URI'] ?? '', '/koko-analytics-dashboard/')) {
-            return;
+        if (get_option('permalink_structure', false)) {
+            // do nothing if url not matches
+            if (! str_contains($_SERVER['REQUEST_URI'] ?? '', '/koko-analytics-dashboard/')) {
+                return;
+            }
+        } else {
+            // do nothing if query string not set
+            if (! isset($_GET['koko-analytics-dashboard'])) {
+                return;
+            }
         }
 
         (new Dashboard_Public())->show();
     }
 
-    public function run_pending_database_migrations(): void
+    public function aggregate_stats(): void
+    {
+        if (! $this->ensure_database_ready()) {
+            return;
+        }
+
+        (new Aggregator())->run();
+    }
+
+    public function maybe_run_database_migrations(): void
+    {
+        $this->ensure_database_ready();
+    }
+
+    public function ensure_database_ready(): bool
     {
         // Bring users on older versions up to the last semver-based migration (2.2.6.3)
         $old_db_version = (string) get_option('koko_analytics_version', '');
@@ -111,8 +134,8 @@ class Controller
         }
 
         // Run integer-based migrations going forward
-        $m = new Migrations_v2(KOKO_ANALYTICS_PLUGIN_DIR . '/migrations/', 'koko_analytics_migrations');
-        $m->run();
+        $m = get_migrations();
+        return $m->ensure_current();
     }
 
     protected function update_migration_version(string $old_db_version): void

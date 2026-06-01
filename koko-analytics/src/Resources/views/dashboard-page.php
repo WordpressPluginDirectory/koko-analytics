@@ -83,7 +83,10 @@ $tab = 'dashboard';
 
             <div class="ka-filter" <?= $page === 0 ? 'style="display: none;"' : ''; ?>>
                 <?php esc_html_e('Page', 'koko-analytics'); ?> =
-                <a class="" href="<?= esc_attr(home_url($page)); ?>"><?= esc_html($page); ?></a>
+                <?php $filtered_post_id = is_string($page) && ctype_digit($page) ? (int) $page : 0; ?>
+                <?php $filtered_permalink = $filtered_post_id > 0 ? get_permalink($filtered_post_id) : home_url($page); ?>
+                <?php $filtered_label = $filtered_post_id > 0 ? get_the_title($filtered_post_id) : $page; ?>
+                <a class="" href="<?= esc_url($filtered_permalink); ?>"><?= esc_html($filtered_label); ?></a>
                 <a class="text-decoration-none text-reset ms-2" aria-label="<?php esc_attr_e('Clear page filter', 'koko-analytics'); ?>" title="<?php esc_attr_e('Clear page filter', 'koko-analytics'); ?>" href="<?= esc_attr(remove_query_arg('p')); ?>">✕</a>
             </div>
 
@@ -175,7 +178,7 @@ $tab = 'dashboard';
     <?php $can_sort = current_user_can('manage_koko_analytics'); ?>
     <div id="ka-components" class="ka-row ka-row-cols-1 ka-row-cols-xl-2 g-3 mb-3 <?= $page !== 0 ? 'page-filter-active' : ''; ?>" <?= $can_sort ? 'data-nonce="' . esc_attr(wp_create_nonce('koko_analytics_save_component_order')) . '"' : ''; ?>>
         <?php foreach ($this->get_components() as $id => $callback) : ?>
-            <div id="<?= esc_attr($id) ?>" class="ka-col" <?= $can_sort ? 'draggable="true"' : ''; ?>>
+            <div id="<?= esc_attr($id) ?>" class="ka-col" <?= $can_sort ? 'data-sortable' : ''; ?>>
                 <div class="ka-box">
                     <?php $callback($date_start, $date_end); ?>
                 </div>
@@ -187,23 +190,25 @@ $tab = 'dashboard';
     </div><?php // end div.ka-row
     ?>
 
-    <?php // show section about koko analytics pro unless on pro version already
-    ?>
+    <?php // show section about koko analytics pro unless on pro version already ?>
     <?php if (!defined('KOKO_ANALYTICS_PRO_VERSION')) : ?>
         <?php if (current_user_can('manage_koko_analytics')) : ?>
-            <div class="p-3 rounded" style="background: #fff3cd;">
-                <h2 class="mt-0 mb-2"><?php esc_html_e('Upgrade to Koko Analytics Pro', 'koko-analytics'); ?></h2>
+            <div class="p-3 rounded" style="background: #f5f8ff;">
+                <h2 class="mt-0 mb-2"><?php esc_html_e('Unlock more insights with Koko Analytics Pro', 'koko-analytics'); ?></h2>
                 <p class="mt-0 mb-2">
-                    <?= esc_html__('You are currently using the free version of Koko Analytics.', 'koko-analytics'); ?>
-                    <?= esc_html__('With Koko Analytics Pro you can unlock powerful benefits like country stats, device stats, custom event tracking and periodic email reports.', 'koko-analytics'); ?>
+                     <?php esc_html_e('Koko Analytics Pro adds country and device statistics, UTM tracking, custom event tracking and scheduled email reports. All while preserving privacy and not using any third-party services.', 'koko-analytics'); ?>
                 </p>
-                <p class="mt-0 mb-0"><a class="btn btn-sm btn-primary" href="https://www.kokoanalytics.com/pricing/" target="_blank"><?php esc_html_e('Upgrade Now', 'koko-analytics'); ?> <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-up-circle-fill align-middle ms-2" viewBox="0 0 16 16">
-                            <path d="M16 8A8 8 0 1 0 0 8a8 8 0 0 0 16 0m-7.5 3.5a.5.5 0 0 1-1 0V5.707L5.354 7.854a.5.5 0 1 1-.708-.708l3-3a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1-.708.708L8.5 5.707z" />
-                        </svg></a></p>
+                <p class="mt-0 mb-0">
+                    <a class="btn btn-sm btn-primary" href="https://www.kokoanalytics.com/pricing/?utm_source=koko-analytics&utm_medium=link&utm_campaign=free-plugin-dashboard-upgrade" rel="noopener noreferrer">
+                        <?php esc_html_e('View pricing', 'koko-analytics'); ?> 
+                    </a>
+                    <span>&nbsp;</span>
+                    <a href="https://www.kokoanalytics.com/features/?utm_source=koko-analytics&utm_medium=link&utm_campaign=free-plugin-dashboard-upgrade#pro" rel="noopener noreferrer"><?php esc_html_e('Learn more about Pro', 'koko-analytics'); ?></a>
+                </p>
             </div>
         <?php else : ?>
             <div class="text-muted text-center mt-5 mb-3">
-                <?php printf(__('Powered by %1s - privacy-friendly analytics for WordPress sites', 'koko-analytics'), '<a href="https://www.kokoanalytics.com/">Koko Analytics</a>'); ?>
+                <?php printf(__('Powered by %1s - privacy-friendly analytics for WordPress sites', 'koko-analytics'), '<a href="https://www.kokoanalytics.com/#utm_source=koko-analytics&amp;utm_medium=link&amp;utm_campaign=free-plugin-dashboard-powered-by">Koko Analytics</a>'); ?>
             </div>
         <?php endif; ?>
     <?php endif; ?>

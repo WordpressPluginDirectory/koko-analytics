@@ -10,7 +10,6 @@ namespace KokoAnalytics\Admin;
 
 use KokoAnalytics\Dashboard;
 use KokoAnalytics\Dashboard_Public;
-use KokoAnalytics\Router;
 
 use function KokoAnalytics\get_buffer_filename;
 use function KokoAnalytics\using_custom_endpoint;
@@ -64,7 +63,8 @@ class Pages
             'performance' => __('Performance', 'koko-analytics'),
             'help' => __('Help', 'koko-analytics'),
         ]);
-        $active_tab = isset($_GET['tab']) && array_key_exists($_GET['tab'], $tabs) ? $_GET['tab'] : 'tracking';
+        $extra_tabs = ['jetpack_importer', 'plausible_importer'];
+        $active_tab = isset($_GET['tab']) && (array_key_exists($_GET['tab'], $tabs) || in_array($_GET['tab'], $extra_tabs)) ? $_GET['tab'] : 'tracking';
         $settings           = get_settings();
         $using_custom_endpoint = using_custom_endpoint();
         $user_roles   = $this->get_available_roles();
@@ -108,6 +108,7 @@ class Pages
             return true;
         }
 
-        return $next_scheduled && $next_scheduled > (time() - 40 * 60);
+        // event should be no older than 1 hour
+        return $next_scheduled && $next_scheduled > (time() - 3600);
     }
 }
